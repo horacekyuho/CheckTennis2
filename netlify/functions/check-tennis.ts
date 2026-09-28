@@ -394,7 +394,7 @@ async function sendNewAlerts(results: SlotResult[]) {
     const existing = await store.get(key);
     if (existing) continue;
 
-    await sendTelegram(formatAlert(result), result.watch.chatId);
+    await sendTelegram(formatAlert(result), result.watch.chatId).catch(console.error);
     await store.setJSON(key, {
       sentAt: new Date().toISOString(),
       watch: result.watch.name,

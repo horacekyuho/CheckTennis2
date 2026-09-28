@@ -13,6 +13,7 @@ type Watch = {
   titleIncludes?: string[];
   titleExcludes?: string[];
   weekendsOnly?: boolean;
+  weekdays?: number[];
   dates: string[];
   times?: string[];
 };
@@ -149,7 +150,7 @@ async function checkWatch(page: Page, watch: Watch): Promise<SlotResult[]> {
       serviceId: service.serviceId ?? watch.serviceId,
       url: service.url,
     };
-    const datesByMonth = groupDatesByMonth(filterDates(watch.dates, watch.weekendsOnly));
+    const datesByMonth = groupDatesByMonth(filterDates(watch.dates, watch.weekdays ?? (watch.weekendsOnly ? [0, 6] : undefined)));
 
     for (const [yyyymm, dates] of datesByMonth) {
       const calendar = await readCalendar(page, yyyymm);
@@ -480,15 +481,15 @@ function groupDatesByMonth(dates: string[]) {
   return groups;
 }
 
-function filterDates(dates: string[], weekendsOnly?: boolean) {
-  if (!weekendsOnly) return dates;
+function filterDates(dates: string[], allowedWeekdays?: number[]) {
+  if (!allowedWeekdays) return dates;
   return dates.filter((date) => {
     const ymd = compactDate(date);
     const year = Number(ymd.slice(0, 4));
     const month = Number(ymd.slice(4, 6)) - 1;
     const day = Number(ymd.slice(6, 8));
     const weekday = new Date(Date.UTC(year, month, day)).getUTCDay();
-    return weekday === 0 || weekday === 6;
+    return allowedWeekdays.includes(weekday);
   });
 }
 

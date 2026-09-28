@@ -106,7 +106,11 @@ export default async (req: Request) => {
   } catch (error) {
     console.error(error);
     if (!dryRun) {
-      await sendTelegram(`Tennis monitor error\n${formatError(error)}`).catch(console.error);
+      const token = Netlify.env.get("TELEGRAM_BOT_TOKEN");
+      const chatId = Netlify.env.get("TELEGRAM_CHAT_ID");
+      if (token && chatId) {
+        await sendTelegram(`Tennis monitor error\n${formatError(error)}`).catch(console.error);
+      }
     }
     return json({
       ok: false,

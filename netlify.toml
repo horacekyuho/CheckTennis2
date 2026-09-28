@@ -8,9 +8,6 @@
 [functions.check-tennis]
   timeout = 30
 
-[[plugins]]
-package = "@netlify/plugin-chromium"
-
 [[redirects]]
   from = "/api/status"
   to = "/status"

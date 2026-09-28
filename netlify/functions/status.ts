@@ -49,7 +49,7 @@ export default async () => {
     ),
   }));
 
-  const ok = Boolean(telegramBotToken && !watchesError && (rawWatches || subscriptions.length > 0) && watchSummaries.every((watch) => watch.valid));
+  const ok = Boolean(telegramBotToken && !watchesError && watchSummaries.every((watch) => watch.valid));
 
   return json({
     ok,
@@ -67,9 +67,10 @@ export default async () => {
       WATCHES_JSON: rawWatches ? "set" : "missing",
     },
     subscriptions: subscriptions.length,
+    configured: Boolean(rawWatches || subscriptions.length > 0),
     watchesError,
     watches: watchSummaries,
-  }, ok ? 200 : 500);
+  });
 };
 
 export const config: Config = {

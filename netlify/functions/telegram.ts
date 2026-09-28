@@ -29,29 +29,41 @@ type CheckResponse = {
 
 export default async (req: Request, context: Context) => {
   if (req.method !== "POST") {
-    return json({ ok: true, message: "Telegram webhook endpoint. Use POST." });
+    return json({
+      ok: true,
+      message: "Telegram webhook endpoint. Use POST.",
+      env: {
+        TELEGRAM_BOT_TOKEN: Netlify.env.get("TELEGRAM_BOT_TOKEN") ? "set" : "missing",
+        TELEGRAM_WEBHOOK_SECRET: Netlify.env.get("TELEGRAM_WEBHOOK_SECRET") ? "set" : "missing",
+      },
+    });
   }
 
   const expectedSecret = Netlify.env.get("TELEGRAM_WEBHOOK_SECRET");
   const actualSecret = req.headers.get("x-telegram-bot-api-secret-token");
   if (expectedSecret && actualSecret !== expectedSecret) {
+    console.error("Invalid Telegram webhook secret", {
+      hasExpectedSecret: Boolean(expectedSecret),
+      hasActualSecret: Boolean(actualSecret),
+    });
     return json({ ok: false, error: "Invalid Telegram webhook secret." }, 401);
   }
 
   const update = await req.json().catch(() => undefined) as TelegramUpdate | undefined;
   const chatId = update?.message?.chat?.id;
   const text = update?.message?.text?.trim() ?? "";
+  console.log("Telegram update received", { chatId: chatId ? String(chatId) : null, text });
 
   if (!chatId) {
     return json({ ok: true, ignored: "missing chat id" });
   }
 
   if (text.startsWith("/check")) {
-    await sendTelegram(chatId, "Checking tennis slots now...");
+    await sendTelegramSafe(chatId, "Checking tennis slots now...");
     context.waitUntil(
       runDryCheck(req.url)
-        .then((result) => sendTelegram(chatId, formatCheckSummary(result)))
-        .catch((error) => sendTelegram(chatId, `Check failed\n${formatError(error)}`)),
+        .then((result) => sendTelegramSafe(chatId, formatCheckSummary(result)))
+        .catch((error) => sendTelegramSafe(chatId, `Check failed\n${formatError(error)}`)),
     );
     return json({ ok: true, command: "/check" });
   }
@@ -60,27 +72,27 @@ export default async (req: Request, context: Context) => {
     try {
       const subscription = makeSubscription(String(chatId), text);
       await setSubscription(subscription);
-      await sendTelegram(chatId, `Subscription saved\n${summarizeSubscription(subscription)}`);
+      await sendTelegramSafe(chatId, `Subscription saved\n${summarizeSubscription(subscription)}`);
     } catch (error) {
-      await sendTelegram(chatId, `Failed to save subscription\n${formatError(error)}`);
+      await sendTelegramSafe(chatId, `Failed to save subscription\n${formatError(error)}`);
     }
     return json({ ok: true, command: "/set" });
   }
 
   if (text.startsWith("/clear")) {
     await deleteSubscription(String(chatId));
-    await sendTelegram(chatId, "Subscription cleared.");
+    await sendTelegramSafe(chatId, "Subscription cleared.");
     return json({ ok: true, command: "/clear" });
   }
 
   if (text.startsWith("/status")) {
     const subscription = await getSubscription(String(chatId));
-    await sendTelegram(chatId, summarizeSubscription(subscription));
+    await sendTelegramSafe(chatId, summarizeSubscription(subscription));
     return json({ ok: true, command: "/status" });
   }
 
   if (text.startsWith("/start") || text.startsWith("/help")) {
-    await sendTelegram(chatId, [
+    await sendTelegramSafe(chatId, [
       "Available commands:",
       "/set date=10/3,10/4 hour=19,20",
       "/set start=10/1 end=10/31 hour=18,19 court=worldcup,seonam",
@@ -125,6 +137,17 @@ async function sendTelegram(chatId: string | number, text: string) {
 
   if (!response.ok) {
     throw new Error(`Telegram sendMessage failed: ${response.status} ${await response.text()}`);
+  }
+}
+
+async function sendTelegramSafe(chatId: string | number, text: string) {
+  try {
+    await sendTelegram(chatId, text);
+  } catch (error) {
+    console.error("Telegram send failed", {
+      chatId: String(chatId),
+      error: formatError(error),
+    });
   }
 }
 

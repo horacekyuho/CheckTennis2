@@ -284,7 +284,7 @@ async function readCalendar(page: Page, yyyymm: string): Promise<CalendarRespons
   const year = yyyymm.slice(0, 4);
   const month = yyyymm.slice(4, 6);
 
-  return page.evaluate(async ({ year, month, yyyymm }) => {
+  return page.evaluate(async ({ year, month, yyyymm }: { year: string; month: string; yyyymm: string }) => {
     const $ = (window as any).$;
     $("#yyyy").val(year);
     $("#mm").val(month);
@@ -309,7 +309,7 @@ async function readCalendar(page: Page, yyyymm: string): Promise<CalendarRespons
 
 async function readTimeAvailability(page: Page, ymd: string, requestedTimes: string[]) {
   try {
-    const html = await page.evaluate(async ({ ymd }) => {
+    const html = await page.evaluate(async ({ ymd }: { ymd: string }) => {
       const $ = (window as any).$;
       $("#useDe").val(ymd);
       $("#aform").find('input[name="formToken"]').remove();
@@ -398,8 +398,8 @@ async function sendNewAlerts(results: SlotResult[]) {
   const { blobs } = await store.list();
   await Promise.all(
     blobs
-      .filter((blob) => blob.key.startsWith("slot/") && !activeKeys.has(blob.key))
-      .map((blob) => store.delete(blob.key)),
+      .filter((blob: { key: string }) => blob.key.startsWith("slot/") && !activeKeys.has(blob.key))
+      .map((blob: { key: string }) => store.delete(blob.key)),
   );
 
   return sent;

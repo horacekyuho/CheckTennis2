@@ -63,8 +63,10 @@ S210219092115226884  서남센터 테니스장7번 코트
 ## Endpoints
 
 - Scheduled: every minute via `* * * * *`
-- Manual check: `/.netlify/functions/check-tennis`
-- Dry run without Telegram/state writes: `/.netlify/functions/check-tennis?dryRun=1`
+- Status: `/status`
+- Manual dry run: `/check`
+- Manual check and Telegram send: `/check?send=1`
+- Function fallback: `/.netlify/functions/check-tennis?dryRun=1`
 
 ## Notes
 

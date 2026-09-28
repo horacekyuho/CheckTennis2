@@ -60,7 +60,15 @@ export default async (req: Request) => {
   const dryRun = new URL(req.url).searchParams.get("dryRun") === "1";
 
   if (watches.length === 0) {
-    return json({ ok: false, error: "No watches configured. Use Telegram /set or set WATCHES_JSON." }, 500);
+    return json({
+      ok: true,
+      idle: true,
+      checkedAt: startedAt.toISOString(),
+      message: "No watches configured. Use Telegram /set or set WATCHES_JSON.",
+      results: [],
+      alertCandidates: 0,
+      sent: [],
+    });
   }
 
   let browser: Browser | undefined;
@@ -93,9 +101,17 @@ export default async (req: Request) => {
   } catch (error) {
     console.error(error);
     if (!dryRun) {
-      await sendTelegram(`테니스장 모니터 오류\n${formatError(error)}`).catch(console.error);
+      await sendTelegram(`Tennis monitor error\n${formatError(error)}`).catch(console.error);
     }
-    return json({ ok: false, error: formatError(error) }, 500);
+    return json({
+      ok: false,
+      checkedAt: startedAt.toISOString(),
+      durationMs: Date.now() - startedAt.getTime(),
+      error: formatError(error),
+      results: [],
+      alertCandidates: 0,
+      sent: [],
+    });
   } finally {
     await browser?.close().catch(() => undefined);
   }
@@ -345,7 +361,7 @@ function hasAvailableTime(html: string, time: string) {
     if (index < 0) continue;
 
     const windowText = normalizedHtml.slice(Math.max(0, index - 180), index + 220);
-    if (!/(예약마감|마감|예약불가|선택불가|disabled|종료|신청불가)/i.test(windowText)) {
+    if (!/(closed|unavailable|disabled|sold out|full|마감|불가)/i.test(windowText)) {
       return true;
     }
   }
@@ -413,14 +429,14 @@ async function sendTelegram(text: string, chatIdOverride?: string) {
 }
 
 function formatAlert(result: SlotResult) {
-  const times = result.matchingTimes.length > 0 ? result.matchingTimes.join(", ") : "날짜 가능";
+  const times = result.matchingTimes.length > 0 ? result.matchingTimes.join(", ") : "date available";
   return [
-    "테니스장 예약 가능 알림",
-    `코트: ${result.watch.name}`,
-    `날짜: ${result.date}`,
-    `시간: ${times}`,
-    result.countText ? `신청/모집: ${result.countText}` : undefined,
-    `링크: ${result.url}`,
+    "Tennis reservation available",
+    `Court: ${result.watch.name}`,
+    `Date: ${result.date}`,
+    `Time: ${times}`,
+    result.countText ? `Count: ${result.countText}` : undefined,
+    `Link: ${result.url}`,
   ].filter(Boolean).join("\n");
 }
 
@@ -489,8 +505,6 @@ function timePatterns(time: string) {
   return [
     `${hour}:${minute}`,
     `${Number(hour)}:${minute}`,
-    `${hour}시`,
-    `${Number(hour)}시`,
   ];
 }
 
@@ -521,7 +535,7 @@ function decodeHtml(value: string) {
 }
 
 function looksLikeLoginPage(text: string) {
-  return /로그인|회원가입|아이디|비밀번호|본인인증/.test(text) && !/회차|시간대|예약일/.test(text);
+  return /login|password|member|로그인|비밀번호|본인인증/i.test(text) && !/time|reservation|예약/.test(text);
 }
 
 function alertKey(result: SlotResult) {

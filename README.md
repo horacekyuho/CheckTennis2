@@ -82,14 +82,14 @@ https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<your-si
 Then send this to the bot in Telegram:
 
 ```text
-/set date=10/3,10/4 hour=19,20
+/set date=10/3-10/31 hour=19,20
 /check
 ```
 
 Commands:
 
 ```text
-/set date=10/3,10/4 hour=19,20
+/set date=10/3-10/31 hour=19,20
 /set start=10/1 end=10/31 hour=18,19 court=worldcup,seonam
 /status
 /check
@@ -98,7 +98,7 @@ Commands:
 
 Options:
 
-- `date`: comma-separated dates, e.g. `10/3,10/4` or `2026-10-03`.
+- `date`: comma-separated dates or ranges, e.g. `10/3,10/4`, `10/3-10/31`, or `2026-10-03`.
 - `start`, `end`: date range. If omitted, defaults to today through 30 days from today.
 - `hour` or `time`: comma-separated start times, e.g. `18,19,20`.
 - `court`: `worldcup`, `seonam`, `seonam5`, `seonam7`, `seonam12`.

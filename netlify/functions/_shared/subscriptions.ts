@@ -1,29 +1,31 @@
 import { getStore } from "@netlify/blobs";
 
+export type WatchConfig = {
+  name: string;
+  serviceId?: string;
+  url?: string;
+  searchKeyword?: string;
+  titleIncludes?: string[];
+  titleExcludes?: string[];
+  weekendsOnly?: boolean;
+  dates: string[];
+  times?: string[];
+};
+
 export type Subscription = {
   chatId: string;
   createdAt: string;
   updatedAt: string;
-  watches: Array<{
-    name: string;
-    serviceId?: string;
-    url?: string;
-    searchKeyword?: string;
-    titleIncludes?: string[];
-    titleExcludes?: string[];
-    weekendsOnly?: boolean;
-    dates: string[];
-    times?: string[];
-  }>;
+  watches: WatchConfig[];
 };
 
-type WatchTemplate = Omit<Subscription["watches"][number], "dates" | "times">;
+type WatchTemplate = Omit<WatchConfig, "dates" | "times">;
 
 const DEFAULT_SERVICES: Record<string, WatchTemplate> = {
   worldcupWeekendA: {
     name: "World Cup Park tennis A weekend",
-    searchKeyword: "월드컵공원",
-    titleIncludes: ["월드컵공원", "테니스장", "A면", "주말"],
+    searchKeyword: "\uc6d4\ub4dc\ucef5\uacf5\uc6d0",
+    titleIncludes: ["\uc6d4\ub4dc\ucef5\uacf5\uc6d0", "\ud14c\ub2c8\uc2a4\uc7a5", "A\uba74", "\uc8fc\ub9d0"],
   },
   seonamCourt5: {
     name: "Seonam Center tennis court 5",
@@ -91,7 +93,7 @@ export function makeSubscription(chatId: string, text: string, now = new Date())
 }
 
 export function summarizeSubscription(subscription: Subscription | null) {
-  if (!subscription) return "No subscription is set. Use /set date=10/3,10/4 hour=19,20";
+  if (!subscription) return "No subscription is set. Use /set date=10/3-10/31 hour=19,20";
 
   const lines = [
     `Subscription for chat ${subscription.chatId}`,
@@ -100,7 +102,7 @@ export function summarizeSubscription(subscription: Subscription | null) {
 
   for (const watch of subscription.watches) {
     lines.push(`- ${watch.name}`);
-    lines.push(`  dates: ${watch.dates.join(", ")}`);
+    lines.push(`  dates: ${summarizeDates(watch.dates)}`);
     lines.push(`  times: ${(watch.times ?? []).join(", ") || "any"}`);
     lines.push(`  weekendsOnly: ${watch.weekendsOnly ? "true" : "false"}`);
   }
@@ -123,12 +125,12 @@ function parseOptions(text: string) {
 
 function parseServices(value?: string) {
   const requested = (value ?? "worldcup,seonam").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
-  const services = [];
+  const services: WatchTemplate[] = [];
 
   for (const item of requested) {
-    if (["worldcup", "worldcup-a", "월드컵", "월드컵공원"].includes(item)) {
+    if (["worldcup", "worldcup-a", "\uc6d4\ub4dc\ucef5", "\uc6d4\ub4dc\ucef5\uacf5\uc6d0"].includes(item)) {
       services.push(DEFAULT_SERVICES.worldcupWeekendA);
-    } else if (["seonam", "서남", "서남센터"].includes(item)) {
+    } else if (["seonam", "\uc11c\ub0a8", "\uc11c\ub0a8\uc13c\ud130"].includes(item)) {
       services.push(DEFAULT_SERVICES.seonamCourt5, DEFAULT_SERVICES.seonamCourt7, DEFAULT_SERVICES.seonamCourt12);
     } else if (["seonam5", "5"].includes(item)) {
       services.push(DEFAULT_SERVICES.seonamCourt5);
@@ -139,16 +141,31 @@ function parseServices(value?: string) {
     }
   }
 
-  return services.length > 0 ? services : [DEFAULT_SERVICES.worldcupWeekendA, DEFAULT_SERVICES.seonamCourt5, DEFAULT_SERVICES.seonamCourt7, DEFAULT_SERVICES.seonamCourt12];
+  return services.length > 0
+    ? services
+    : [DEFAULT_SERVICES.worldcupWeekendA, DEFAULT_SERVICES.seonamCourt5, DEFAULT_SERVICES.seonamCourt7, DEFAULT_SERVICES.seonamCourt12];
 }
 
 function parseDates(options: Record<string, string>) {
   if (options.date) {
-    return options.date.split(",").map(parseDateToken);
+    return options.date.split(",").flatMap(parseDateValue);
   }
 
   const start = options.start ? parseDateToken(options.start) : todayKst();
-  const end = options.end ? parseDateToken(options.end) : addDays(start, 30);
+  const end = options.end ? parseDateToken(options.end, start) : addDays(start, 30);
+  return expandRange(start, end);
+}
+
+function parseDateValue(value: string) {
+  const rangeMatch = value.trim().match(/^(.+?)-(.+)$/);
+  if (!rangeMatch) return [parseDateToken(value)];
+
+  const start = parseDateToken(rangeMatch[1]);
+  const end = parseDateToken(rangeMatch[2], start);
+  return expandRange(start, end);
+}
+
+function expandRange(start: string, end: string) {
   const dates = [];
   let cursor = start;
 
@@ -169,13 +186,17 @@ function parseTimes(value?: string) {
   });
 }
 
-function parseDateToken(value: string) {
+function parseDateToken(value: string, baseDate?: string) {
   const parts = value.trim().split(/[/-]/).map(Number);
   const now = new Date();
   const kstYear = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric" }).format(now);
+  const baseYear = baseDate ? Number(baseDate.slice(0, 4)) : Number(kstYear);
 
+  if (parts.length === 1 && baseDate) {
+    return formatDate(baseYear, Number(baseDate.slice(5, 7)), parts[0]);
+  }
   if (parts.length === 2) {
-    return formatDate(Number(kstYear), parts[0], parts[1]);
+    return formatDate(baseYear, parts[0], parts[1]);
   }
   if (parts.length === 3) {
     return formatDate(parts[0], parts[1], parts[2]);
@@ -200,4 +221,9 @@ function addDays(date: string, days: number) {
 
 function formatDate(year: number, month: number, day: number) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function summarizeDates(dates: string[]) {
+  if (dates.length <= 8) return dates.join(", ");
+  return `${dates[0]} ... ${dates[dates.length - 1]} (${dates.length} days)`;
 }

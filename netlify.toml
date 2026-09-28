@@ -1,6 +1,5 @@
 [build]
   publish = "public"
-  command = "npm run check"
 
 [functions]
   node_bundler = "esbuild"

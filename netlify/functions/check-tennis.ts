@@ -75,7 +75,9 @@ export default async (req: Request) => {
   let browser: Browser | undefined;
 
   try {
+    console.log("Starting browser launch...", { watchCount: watches.length });
     browser = await launchBrowser();
+    console.log("Browser launched", { elapsedMs: Date.now() - startedAt.getTime() });
     const results: SlotResult[] = [];
 
     for (const watch of watches) {
@@ -89,7 +91,9 @@ export default async (req: Request) => {
 
     const alerts = results.filter(shouldAlert);
     const sent = dryRun ? [] : await sendNewAlerts(alerts);
+    const totalMs = Date.now() - startedAt.getTime();
 
+    console.log("Check complete", { results: results.length, alerts: alerts.length, totalMs });
     return json({
       ok: true,
       dryRun,
@@ -410,8 +414,12 @@ async function sendTelegram(text: string, chatIdOverride?: string) {
   const token = Netlify.env.get("TELEGRAM_BOT_TOKEN");
   const chatId = chatIdOverride ?? Netlify.env.get("TELEGRAM_CHAT_ID");
 
-  if (!token || !chatId) {
-    throw new Error("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are required.");
+  if (!token) {
+    throw new Error("TELEGRAM_BOT_TOKEN is required.");
+  }
+
+  if (!chatId) {
+    throw new Error("No chat ID specified. Use Telegram /set command or set TELEGRAM_CHAT_ID.");
   }
 
   const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {

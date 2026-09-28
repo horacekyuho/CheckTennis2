@@ -1,4 +1,4 @@
-import type { Config } from "@netlify/functions";
+import type { Config, Context } from "@netlify/functions";
 import checkTennis from "./check-tennis.js";
 import { deleteSubscription, getSubscription, makeSubscription, setSubscription, summarizeSubscription } from "./_shared/subscriptions.js";
 
@@ -27,7 +27,7 @@ type CheckResponse = {
   error?: string;
 };
 
-export default async (req: Request) => {
+export default async (req: Request, context: Context) => {
   if (req.method !== "POST") {
     return json({ ok: true, message: "Telegram webhook endpoint. Use POST." });
   }
@@ -48,8 +48,11 @@ export default async (req: Request) => {
 
   if (text.startsWith("/check")) {
     await sendTelegram(chatId, "Checking tennis slots now...");
-    const result = await runDryCheck(req.url);
-    await sendTelegram(chatId, formatCheckSummary(result));
+    context.waitUntil(
+      runDryCheck(req.url)
+        .then((result) => sendTelegram(chatId, formatCheckSummary(result)))
+        .catch((error) => sendTelegram(chatId, `Check failed\n${formatError(error)}`)),
+    );
     return json({ ok: true, command: "/check" });
   }
 

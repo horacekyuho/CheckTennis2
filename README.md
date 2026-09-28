@@ -76,7 +76,7 @@ S210219092115226884  서남센터 테니스장7번 코트
 After deploy, register the webhook:
 
 ```text
-https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<your-site>.netlify.app/telegram&secret_token=<TELEGRAM_WEBHOOK_SECRET>
+https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<your-site>.netlify.app/api/telegram&secret_token=<TELEGRAM_WEBHOOK_SECRET>
 ```
 
 Then send this to the bot in Telegram:

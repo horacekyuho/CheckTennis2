@@ -1,0 +1,203 @@
+import { getStore } from "@netlify/blobs";
+
+export type Subscription = {
+  chatId: string;
+  createdAt: string;
+  updatedAt: string;
+  watches: Array<{
+    name: string;
+    serviceId?: string;
+    url?: string;
+    searchKeyword?: string;
+    titleIncludes?: string[];
+    titleExcludes?: string[];
+    weekendsOnly?: boolean;
+    dates: string[];
+    times?: string[];
+  }>;
+};
+
+type WatchTemplate = Omit<Subscription["watches"][number], "dates" | "times">;
+
+const DEFAULT_SERVICES: Record<string, WatchTemplate> = {
+  worldcupWeekendA: {
+    name: "World Cup Park tennis A weekend",
+    searchKeyword: "월드컵공원",
+    titleIncludes: ["월드컵공원", "테니스장", "A면", "주말"],
+  },
+  seonamCourt5: {
+    name: "Seonam Center tennis court 5",
+    serviceId: "S210219091826906010",
+    weekendsOnly: true,
+  },
+  seonamCourt7: {
+    name: "Seonam Center tennis court 7",
+    serviceId: "S210219092115226884",
+    weekendsOnly: true,
+  },
+  seonamCourt12: {
+    name: "Seonam Center tennis court 12",
+    serviceId: "S210224095950585838",
+    weekendsOnly: true,
+  },
+};
+
+export async function getSubscription(chatId: string) {
+  const store = getStore({ name: "tennis-subscriptions", consistency: "strong" });
+  return await store.get(subscriptionKey(chatId), { type: "json" }) as Subscription | null;
+}
+
+export async function setSubscription(subscription: Subscription) {
+  const store = getStore({ name: "tennis-subscriptions", consistency: "strong" });
+  await store.setJSON(subscriptionKey(subscription.chatId), subscription);
+}
+
+export async function deleteSubscription(chatId: string) {
+  const store = getStore({ name: "tennis-subscriptions", consistency: "strong" });
+  await store.delete(subscriptionKey(chatId));
+}
+
+export async function listSubscriptions() {
+  const store = getStore({ name: "tennis-subscriptions", consistency: "strong" });
+  const { blobs } = await store.list({ prefix: "chat/" });
+  const subscriptions: Subscription[] = [];
+
+  for (const blob of blobs) {
+    const subscription = await store.get(blob.key, { type: "json" }) as Subscription | null;
+    if (subscription) subscriptions.push(subscription);
+  }
+
+  return subscriptions;
+}
+
+export function makeSubscription(chatId: string, text: string, now = new Date()) {
+  const options = parseOptions(text);
+  const dates = parseDates(options);
+  const times = parseTimes(options.hour ?? options.time);
+  const services = parseServices(options.court ?? options.courts);
+  const weekend = options.weekend !== "false";
+
+  return {
+    chatId,
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+    watches: services.map((service) => ({
+      ...service,
+      weekendsOnly: service.weekendsOnly || weekend,
+      dates,
+      times,
+    })),
+  } satisfies Subscription;
+}
+
+export function summarizeSubscription(subscription: Subscription | null) {
+  if (!subscription) return "No subscription is set. Use /set date=10/3,10/4 hour=19,20";
+
+  const lines = [
+    `Subscription for chat ${subscription.chatId}`,
+    `Updated: ${subscription.updatedAt}`,
+  ];
+
+  for (const watch of subscription.watches) {
+    lines.push(`- ${watch.name}`);
+    lines.push(`  dates: ${watch.dates.join(", ")}`);
+    lines.push(`  times: ${(watch.times ?? []).join(", ") || "any"}`);
+    lines.push(`  weekendsOnly: ${watch.weekendsOnly ? "true" : "false"}`);
+  }
+
+  return lines.join("\n");
+}
+
+function subscriptionKey(chatId: string) {
+  return `chat/${chatId}.json`;
+}
+
+function parseOptions(text: string) {
+  const options: Record<string, string> = {};
+  for (const token of text.split(/\s+/).slice(1)) {
+    const [key, ...rest] = token.split("=");
+    if (key && rest.length > 0) options[key.toLowerCase()] = rest.join("=");
+  }
+  return options;
+}
+
+function parseServices(value?: string) {
+  const requested = (value ?? "worldcup,seonam").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
+  const services = [];
+
+  for (const item of requested) {
+    if (["worldcup", "worldcup-a", "월드컵", "월드컵공원"].includes(item)) {
+      services.push(DEFAULT_SERVICES.worldcupWeekendA);
+    } else if (["seonam", "서남", "서남센터"].includes(item)) {
+      services.push(DEFAULT_SERVICES.seonamCourt5, DEFAULT_SERVICES.seonamCourt7, DEFAULT_SERVICES.seonamCourt12);
+    } else if (["seonam5", "5"].includes(item)) {
+      services.push(DEFAULT_SERVICES.seonamCourt5);
+    } else if (["seonam7", "7"].includes(item)) {
+      services.push(DEFAULT_SERVICES.seonamCourt7);
+    } else if (["seonam12", "12"].includes(item)) {
+      services.push(DEFAULT_SERVICES.seonamCourt12);
+    }
+  }
+
+  return services.length > 0 ? services : [DEFAULT_SERVICES.worldcupWeekendA, DEFAULT_SERVICES.seonamCourt5, DEFAULT_SERVICES.seonamCourt7, DEFAULT_SERVICES.seonamCourt12];
+}
+
+function parseDates(options: Record<string, string>) {
+  if (options.date) {
+    return options.date.split(",").map(parseDateToken);
+  }
+
+  const start = options.start ? parseDateToken(options.start) : todayKst();
+  const end = options.end ? parseDateToken(options.end) : addDays(start, 30);
+  const dates = [];
+  let cursor = start;
+
+  while (cursor <= end) {
+    dates.push(cursor);
+    cursor = addDays(cursor, 1);
+  }
+
+  return dates;
+}
+
+function parseTimes(value?: string) {
+  if (!value) return undefined;
+  return value.split(",").map((item) => {
+    const match = item.trim().match(/^(\d{1,2})(?::?(\d{2}))?$/);
+    if (!match) return item.trim();
+    return `${match[1].padStart(2, "0")}:${match[2] ?? "00"}`;
+  });
+}
+
+function parseDateToken(value: string) {
+  const parts = value.trim().split(/[/-]/).map(Number);
+  const now = new Date();
+  const kstYear = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric" }).format(now);
+
+  if (parts.length === 2) {
+    return formatDate(Number(kstYear), parts[0], parts[1]);
+  }
+  if (parts.length === 3) {
+    return formatDate(parts[0], parts[1], parts[2]);
+  }
+  throw new Error(`Invalid date: ${value}`);
+}
+
+function todayKst() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function addDays(date: string, days: number) {
+  const [year, month, day] = date.split("-").map(Number);
+  const next = new Date(Date.UTC(year, month - 1, day + days));
+  return formatDate(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate());
+}
+
+function formatDate(year: number, month: number, day: number) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}

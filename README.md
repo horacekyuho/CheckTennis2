@@ -29,8 +29,10 @@ Also set:
 
 ```text
 TELEGRAM_BOT_TOKEN=123456:abc...
-TELEGRAM_CHAT_ID=123456789
+TELEGRAM_WEBHOOK_SECRET=some-long-random-string
 ```
+
+`TELEGRAM_CHAT_ID` is optional now. It is only used for static `WATCHES_JSON` automatic alerts. Telegram `/set` subscriptions reply to the chat that created them.
 
 `serviceId` may be replaced with a full `url` if needed. For monthly services such as World Cup Park, prefer `searchKeyword` with `titleIncludes` so the function finds the current month's service automatically. Use `weekendsOnly: true` when a service does not split weekday/weekend in its title but you only want Saturday/Sunday dates checked.
 
@@ -66,7 +68,43 @@ S210219092115226884  서남센터 테니스장7번 코트
 - Status: `/status`
 - Manual dry run: `/check`
 - Manual check and Telegram send: `/check?send=1`
+- Telegram webhook: `/telegram`
 - Function fallback: `/.netlify/functions/check-tennis?dryRun=1`
+
+## Telegram Commands
+
+After deploy, register the webhook:
+
+```text
+https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<your-site>.netlify.app/telegram&secret_token=<TELEGRAM_WEBHOOK_SECRET>
+```
+
+Then send this to the bot in Telegram:
+
+```text
+/set date=10/3,10/4 hour=19,20
+/check
+```
+
+Commands:
+
+```text
+/set date=10/3,10/4 hour=19,20
+/set start=10/1 end=10/31 hour=18,19 court=worldcup,seonam
+/status
+/check
+/clear
+```
+
+Options:
+
+- `date`: comma-separated dates, e.g. `10/3,10/4` or `2026-10-03`.
+- `start`, `end`: date range. If omitted, defaults to today through 30 days from today.
+- `hour` or `time`: comma-separated start times, e.g. `18,19,20`.
+- `court`: `worldcup`, `seonam`, `seonam5`, `seonam7`, `seonam12`.
+- `weekend`: defaults to `true`. Use `weekend=false` to include weekdays too.
+
+The bot stores each chat's subscription in Netlify Blobs. The scheduled monitor checks saved subscriptions every minute and sends alerts back to the subscribed chat.
 
 ## Notes
 

@@ -1,4 +1,5 @@
 import type { Config } from "@netlify/functions";
+import { listSubscriptions } from "./_shared/subscriptions.js";
 
 type Watch = {
   name?: string;
@@ -16,6 +17,7 @@ export default async () => {
   const telegramBotToken = Netlify.env.get("TELEGRAM_BOT_TOKEN");
   const telegramChatId = Netlify.env.get("TELEGRAM_CHAT_ID");
   const rawWatches = Netlify.env.get("WATCHES_JSON");
+  const subscriptions = await listSubscriptions().catch(() => []);
 
   let watches: Watch[] = [];
   let watchesError: string | undefined;
@@ -47,7 +49,7 @@ export default async () => {
     ),
   }));
 
-  const ok = Boolean(telegramBotToken && telegramChatId && rawWatches && !watchesError && watchSummaries.every((watch) => watch.valid));
+  const ok = Boolean(telegramBotToken && !watchesError && (rawWatches || subscriptions.length > 0) && watchSummaries.every((watch) => watch.valid));
 
   return json({
     ok,
@@ -61,8 +63,10 @@ export default async () => {
     env: {
       TELEGRAM_BOT_TOKEN: telegramBotToken ? "set" : "missing",
       TELEGRAM_CHAT_ID: telegramChatId ? "set" : "missing",
+      TELEGRAM_WEBHOOK_SECRET: Netlify.env.get("TELEGRAM_WEBHOOK_SECRET") ? "set" : "missing",
       WATCHES_JSON: rawWatches ? "set" : "missing",
     },
+    subscriptions: subscriptions.length,
     watchesError,
     watches: watchSummaries,
   }, ok ? 200 : 500);

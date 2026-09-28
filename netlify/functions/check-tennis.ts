@@ -2,9 +2,11 @@ import type { Config } from "@netlify/functions";
 import { getStore } from "@netlify/blobs";
 import chromium from "@sparticuz/chromium";
 import { chromium as playwrightChromium, type Browser, type Page } from "playwright-core";
+import { listSubscriptions, type Subscription } from "./_shared/subscriptions.js";
 
 type Watch = {
   name: string;
+  chatId?: string;
   serviceId?: string;
   url?: string;
   searchKeyword?: string;
@@ -54,11 +56,11 @@ const SEOUL_BASE_URL = "https://yeyak.seoul.go.kr";
 
 export default async (req: Request) => {
   const startedAt = new Date();
-  const watches = parseWatches();
+  const watches = await parseWatches();
   const dryRun = new URL(req.url).searchParams.get("dryRun") === "1";
 
   if (watches.length === 0) {
-    return json({ ok: false, error: "WATCHES_JSON is empty or missing." }, 500);
+    return json({ ok: false, error: "No watches configured. Use Telegram /set or set WATCHES_JSON." }, 500);
   }
 
   let browser: Browser | undefined;
@@ -367,7 +369,7 @@ async function sendNewAlerts(results: SlotResult[]) {
     const existing = await store.get(key);
     if (existing) continue;
 
-    await sendTelegram(formatAlert(result));
+    await sendTelegram(formatAlert(result), result.watch.chatId);
     await store.setJSON(key, {
       sentAt: new Date().toISOString(),
       watch: result.watch.name,
@@ -387,9 +389,9 @@ async function sendNewAlerts(results: SlotResult[]) {
   return sent;
 }
 
-async function sendTelegram(text: string) {
+async function sendTelegram(text: string, chatIdOverride?: string) {
   const token = Netlify.env.get("TELEGRAM_BOT_TOKEN");
-  const chatId = Netlify.env.get("TELEGRAM_CHAT_ID");
+  const chatId = chatIdOverride ?? Netlify.env.get("TELEGRAM_CHAT_ID");
 
   if (!token || !chatId) {
     throw new Error("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are required.");
@@ -422,15 +424,26 @@ function formatAlert(result: SlotResult) {
   ].filter(Boolean).join("\n");
 }
 
-function parseWatches(): Watch[] {
+async function parseWatches(): Promise<Watch[]> {
   const raw = Netlify.env.get("WATCHES_JSON");
-  if (!raw) return [];
+  const watches = raw ? JSON.parse(raw) as Watch[] : [];
 
-  const parsed = JSON.parse(raw) as Watch[];
-  if (!Array.isArray(parsed)) {
+  if (!Array.isArray(watches)) {
     throw new Error("WATCHES_JSON must be a JSON array.");
   }
-  return parsed;
+
+  const subscriptions = await listSubscriptions().catch((error) => {
+    console.error("Failed to list subscriptions", error);
+    return [] as Subscription[];
+  });
+
+  return [
+    ...watches,
+    ...subscriptions.flatMap((subscription) => subscription.watches.map((watch) => ({
+      ...watch,
+      chatId: subscription.chatId,
+    }))),
+  ];
 }
 
 function validateWatch(watch: Watch) {

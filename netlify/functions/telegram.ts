@@ -94,11 +94,22 @@ export default async (req: Request, context: Context) => {
   if (text.startsWith("/start") || text.startsWith("/help")) {
     await sendTelegramSafe(chatId, [
       "Available commands:",
+      "",
       "/set date=10/3,10/4 hour=19,20",
       "/set start=10/1 end=10/31 hour=18,19 court=worldcup,seonam",
-      "/check - run a tennis availability check now",
-      "/status - show bot status",
-      "/clear - remove your saved subscription",
+      "/set date=10/1-10/31 hour=19,20 weekday=sat,sun",
+      "/set date=10/1-10/31 hour=19 weekday=mon,tue,wed,thu,fri",
+      "",
+      "Options:",
+      "• date: 10/3,10/4 or 10/3-10/31 or 2026-10-03",
+      "• start/end: date range (default: today ± 30 days)",
+      "• hour/time: 18,19,20",
+      "• court: worldcup,seonam,seonam5,seonam7,seonam12",
+      "• weekday/day: sat,sun (default) or mon-fri or 0-6",
+      "",
+      "/check - check availability now",
+      "/status - show subscription",
+      "/clear - remove subscription",
     ].join("\n"));
     return json({ ok: true, command: "help" });
   }

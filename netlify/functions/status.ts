@@ -9,6 +9,7 @@ type Watch = {
   titleIncludes?: string[];
   titleExcludes?: string[];
   weekendsOnly?: boolean;
+  weekdays?: number[];
   dates?: string[];
   times?: string[];
 };
@@ -38,7 +39,7 @@ export default async () => {
     serviceId: watch.serviceId ?? null,
     searchKeyword: watch.searchKeyword ?? null,
     titleIncludes: watch.titleIncludes ?? [],
-    weekendsOnly: Boolean(watch.weekendsOnly),
+    weekdays: watch.weekdays ?? [0, 6],
     dates: watch.dates ?? [],
     times: watch.times ?? [],
     valid: Boolean(

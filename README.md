@@ -90,7 +90,8 @@ Commands:
 
 ```text
 /set date=10/3-10/31 hour=19,20
-/set start=10/1 end=10/31 hour=18,19 court=worldcup,seonam
+/set date=10/1-10/31 hour=18,19 court=worldcup,seonam weekday=sat,sun
+/set start=10/1 end=10/31 hour=18,19 weekday=mon-fri
 /status
 /check
 /clear
@@ -102,7 +103,11 @@ Options:
 - `start`, `end`: date range. If omitted, defaults to today through 30 days from today.
 - `hour` or `time`: comma-separated start times, e.g. `18,19,20`.
 - `court`: `worldcup`, `seonam`, `seonam5`, `seonam7`, `seonam12`.
-- `weekend`: defaults to `true`. Use `weekend=false` to include weekdays too.
+- `weekday` or `day`: days of week to monitor. Defaults to `sat,sun` (weekends). Examples:
+  - `weekday=sat,sun` (Saturday, Sunday)
+  - `weekday=0,6` (Sunday, Saturday — 0=Sunday, 1=Monday, ..., 6=Saturday)
+  - `weekday=mon,tue,wed,thu,fri` (weekdays only)
+  - Korean: `weekday=토,일` or `weekday=월,화,수,목,금`
 
 The bot stores each chat's subscription in Netlify Blobs. The scheduled monitor checks saved subscriptions every minute and sends alerts back to the subscribed chat.
 

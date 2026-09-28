@@ -1,6 +1,6 @@
 import type { Config } from "@netlify/functions";
 import { getStore } from "@netlify/blobs";
-import chromium from "chrome-aws-lambda";
+import chromium from "@sparticuz/chromium";
 import { chromium as playwrightChromium, type Browser, type Page } from "playwright-core";
 import { listSubscriptions, type Subscription } from "./_shared/subscriptions.js";
 
@@ -131,9 +131,11 @@ export const config: Config = {
 };
 
 async function launchBrowser() {
+  const executablePath = await chromium.executablePath();
+
   return playwrightChromium.launch({
     args: chromium.args,
-    executablePath: await chromium.executablePath,
+    executablePath,
     headless: true,
   });
 }

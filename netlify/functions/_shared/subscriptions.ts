@@ -8,6 +8,7 @@ export type WatchConfig = {
   titleIncludes?: string[];
   titleExcludes?: string[];
   weekendsOnly?: boolean;
+  weekdays?: number[];
   dates: string[];
   times?: string[];
 };
@@ -77,7 +78,7 @@ export function makeSubscription(chatId: string, text: string, now = new Date())
   const dates = parseDates(options);
   const times = parseTimes(options.hour ?? options.time);
   const services = parseServices(options.court ?? options.courts);
-  const weekend = options.weekend !== "false";
+  const weekdays = parseWeekdays(options.weekday ?? options.day);
 
   return {
     chatId,
@@ -85,7 +86,7 @@ export function makeSubscription(chatId: string, text: string, now = new Date())
     updatedAt: now.toISOString(),
     watches: services.map((service) => ({
       ...service,
-      weekendsOnly: service.weekendsOnly || weekend,
+      weekdays,
       dates,
       times,
     })),
@@ -104,7 +105,7 @@ export function summarizeSubscription(subscription: Subscription | null) {
     lines.push(`- ${watch.name}`);
     lines.push(`  dates: ${summarizeDates(watch.dates)}`);
     lines.push(`  times: ${(watch.times ?? []).join(", ") || "any"}`);
-    lines.push(`  weekendsOnly: ${watch.weekendsOnly ? "true" : "false"}`);
+    lines.push(`  weekdays: ${summarizeWeekdays(watch.weekdays ?? [0, 6])}`);
   }
 
   return lines.join("\n");
@@ -226,4 +227,37 @@ function formatDate(year: number, month: number, day: number) {
 function summarizeDates(dates: string[]) {
   if (dates.length <= 8) return dates.join(", ");
   return `${dates[0]} ... ${dates[dates.length - 1]} (${dates.length} days)`;
+}
+
+function parseWeekdays(value?: string): number[] {
+  if (!value) return [0, 6];
+
+  const dayNames: Record<string, number> = {
+    sun: 0, 일: 0,
+    mon: 1, 월: 1,
+    tue: 2, 화: 2,
+    wed: 3, 수: 3,
+    thu: 4, 목: 4,
+    fri: 5, 금: 5,
+    sat: 6, 토: 6,
+  };
+
+  const days = new Set<number>();
+  for (const token of value.split(",")) {
+    const trimmed = token.trim().toLowerCase();
+
+    if (/^\d+$/.test(trimmed)) {
+      const num = Number(trimmed);
+      if (num >= 0 && num <= 6) days.add(num);
+    } else if (dayNames[trimmed] !== undefined) {
+      days.add(dayNames[trimmed]);
+    }
+  }
+
+  return days.size > 0 ? Array.from(days).sort((a, b) => a - b) : [0, 6];
+}
+
+function summarizeWeekdays(weekdays: number[]): string {
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  return weekdays.map((d) => dayNames[d]).join(",");
 }
